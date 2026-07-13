@@ -1,19 +1,52 @@
 {
     "show_builtin_cmds": {
         "description": "显示内置插件命令",
+        "hint": "显示AstrBot原生内置的命令",
+        "type": "bool",
+        "default": true
+    },
+    "show_all_cmds": {
+        "description": "显示所有插件命令",
+        "hint": "开启后将会显示管理员可用的插件命令，仅需要时开启。可在<Dashboard-插件-管理行为>中修改每条命令的权限。",
         "type": "bool",
         "default": false
     },
     "custom_cmds": {
         "description": "自定义的额外命令",
-        "hint": "一些通过正则或者监听器形成的命令无法检测，可通过自定义方式补充，格式为“命令: 一段描述”，分隔符为英文逗号或#",
+        "hint": "一些通过正则或者监听器形成的命令无法检测，可通过自定义方式补充，格式为“命令:一段描述”",
         "type": "list",
         "default": []
     },
+    "plugin_display_names": {
+        "description": "插件显示名称（当部分插件不存在外显名称时使用）",
+        "hint": "填写插件名称和显示名称，格式为“插件名称:显示名称”，分隔符为英文逗号",
+        "type": "list",
+        "default": [
+            "builtin_commands:内置指令",
+            "daily_60s_news:每日60秒新闻",
+            "astrbot_plugin_zanwo:QQ资料卡点赞"
+        ]
+    },
     "plugin_blacklist": {
         "description": "插件黑名单",
-        "hint": "填写插件名称(区分大小写)，如：astrbot_plugin_help，黑名单里的插件不显示帮助",
+        "hint": "填写插件名称(区分大小写)，如：每日60秒新闻，黑名单里的插件不显示帮助",
         "type": "list",
         "default": []
+    },
+    "title_help": {
+        "description": "帮助菜单标题",
+        "type": "string",
+        "default": "AstrBot 命令帮助"
+    },
+    "title_desc": {
+        "description": "帮助菜单简介",
+        "type": "string",
+        "default": "可用插件及指令列表"
+    },
+    "logo_enable": {
+        "description": "启用帮助菜单logo",
+        "hint": "可以在插件目录替换astrbot_logo.jpg为自定义的logo。",
+        "type": "bool",
+        "default": true
     }
 }

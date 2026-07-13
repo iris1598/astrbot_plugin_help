@@ -9,6 +9,7 @@ from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.message.components import Image
 from astrbot.core.star.filter.command import CommandFilter
 from astrbot.core.star.filter.command_group import CommandGroupFilter
+from astrbot.core.star.filter.permission import PermissionType, PermissionTypeFilter
 from astrbot.core.star.star_handler import star_handlers_registry, StarHandlerMetadata
 
 from .draw import AstrBotHelpDrawer
@@ -23,9 +24,10 @@ class MyPlugin(Star):
         self.config = config
         self.drawer = AstrBotHelpDrawer(config)
 
-    @filter.command("helps", alias={"帮助", "菜单", "功能"})
+
+    @filter.command("helps", alias={"帮助", "菜单", "功能", "幫助", "菜單"})
     async def get_help(self, event: AstrMessageEvent):
-        """获取插件帮助信息"""
+        """获取插件命令列表并生成命令帮助图片"""
         help_msg = self.get_all_commands()
         if not help_msg:
             yield event.plain_result("没有找到任何插件或命令")
@@ -33,24 +35,81 @@ class MyPlugin(Star):
         image = self.drawer.draw_help_image(help_msg)
         yield event.chain_result([Image.fromBytes(image)])
 
-    def get_all_commands(self) -> Dict[str, List[str]]:
-        """获取所有其他插件及其命令列表, 格式为 {plugin_name: [command#desc]}"""
+
+    def _get_permission_level(self, handler: StarHandlerMetadata) -> str:
+        """提取指令权限等级: admin/member/everyone"""
+        for filter_ in handler.event_filters:
+            if isinstance(filter_, PermissionTypeFilter):
+                return (
+                    "admin"
+                    if filter_.permission_type == PermissionType.ADMIN
+                    else "member"
+                )
+        return "everyone"
+
+
+    def _should_include_command(self, permission_level: str) -> bool:
+        """根据配置决定是否显示该权限级别的命令"""
+        if getattr(self.config, "show_all_cmds", False):
+            return True
+        return permission_level != "admin"
+
+
+    def _get_plugin_display_name_map(self) -> Dict[str, str]:
+        """解析配置中的插件显示名称映射"""
+        mapping: Dict[str, str] = {}
+        configured_names = getattr(self.config, "plugin_display_names", []) or []
+        if not isinstance(configured_names, list):
+            return mapping
+
+        for item in configured_names:
+            if not isinstance(item, str):
+                continue
+            raw = item.strip()
+            if not raw or ":" not in raw:
+                continue
+            plugin_name, display_name = raw.split(":", 1)
+            plugin_name = plugin_name.strip()
+            display_name = display_name.strip()
+            if plugin_name and display_name:
+                mapping[plugin_name] = display_name
+        return mapping
+
+
+    def get_all_commands(self) -> Dict[str, List[dict]]:
+        """获取所有其他插件及其命令列表, 格式为 {plugin_name: [{command, desc, permission}]}"""
         # 使用 defaultdict 可以方便地向列表中添加元素
-        plugin_commands: Dict[str, List[str]] = collections.defaultdict(list)
+        plugin_commands: Dict[str, List[dict]] = collections.defaultdict(list)
+        plugin_command_keys: Dict[str, set[tuple[str, str, str]]] = collections.defaultdict(set)
         try:
             # 获取所有插件的元数据，并且去掉未激活的
             all_stars_metadata = self.context.get_all_stars()
             all_stars_metadata = [star for star in all_stars_metadata if star.activated]
+            logger.debug(f"找到 {len(all_stars_metadata)} 个激活的插件")
+            
+
         except Exception as e:
             logger.error(f"获取插件列表失败: {e}")
             return {}  # 出错时返回空字典
+        
         if not all_stars_metadata:
             logger.warning("没有找到任何插件")
             return {}  # 没有插件时返回空字典
+
+        display_name_map = self._get_plugin_display_name_map()
+        
+
         for star in all_stars_metadata:
-            plugin_name = getattr(star, "name", "未知插件")
-            plugin_instance = getattr(star, "star_cls", None)
-            module_path = getattr(star, "module_path", None)  # 获取模块路径以供匹配
+            plugin_name = getattr(star, "name", "未知插件") # 插件内部名
+            plugin_native_displayname = (getattr(star, "display_name", "") or "").strip()
+            plugin_displayname = (
+                plugin_native_displayname
+                or display_name_map.get(plugin_name, "")
+                or plugin_name
+            )  # 用于展示的名称，优先插件内定义，再回退配置映射，最后回退内部名
+            plugin_instance = getattr(star, "star_cls", None) # 插件的类对象
+            module_path = getattr(star, "module_path", None)  # 插件的模块路径
+            
             if (
                 plugin_name == "astrbot"
                 or plugin_name == "astrbot_plugin_help"
@@ -58,6 +117,14 @@ class MyPlugin(Star):
             ):
                 # 跳过自身和核心插件
                 continue
+
+            # 内置命令插件的显示由配置控制，默认显示，如果配置里 show_builtin_cmds 是 False 则跳过
+            if (
+                plugin_name == "builtin_commands" 
+                and not getattr(self.config, "show_builtin_cmds", True)
+            ):
+                continue
+
             # 进行必要的检查
             if (
                 not plugin_name
@@ -70,9 +137,7 @@ class MyPlugin(Star):
                     f"插件 '{plugin_name}' (模块: {module_path}) 的元数据无效或不完整，已跳过。"
                 )
                 continue
-            # 检查插件实例是否是当前插件的实例 (排除自身)
-            if plugin_instance is self:
-                continue
+
             # 遍历所有注册的处理器
             for handler in star_handlers_registry:
                 # 确保处理器元数据有效且类型正确 (虽然原始代码有 assert，这里加个检查更安全)
@@ -93,16 +158,21 @@ class MyPlugin(Star):
                         break  # 找到一个命令组即可
                 # 如果找到了命令或命令组名称
                 if command_name:
-                    # 格式化字符串
-                    if description:
-                        formatted_command = f"{command_name}#{description}"
-                    else:
-                        # 如果没有描述，就不加 # 和后面的部分
-                        formatted_command = command_name
+                    permission_level = self._get_permission_level(handler)
+                    if not self._should_include_command(permission_level):
+                        continue
 
-                    # 将格式化后的命令添加到对应插件的列表中
-                    # 使用 set 来避免因别名等原因导致的完全重复项（如 "/cmd1#desc" 多次出现）
-                    # 如果允许重复（例如不同handler但命令和描述相同），则直接 append
-                    if formatted_command not in plugin_commands[plugin_name]:
-                        plugin_commands[plugin_name].append(formatted_command)
+                    desc_text = (description or "").strip()
+                    dedupe_key = (command_name, desc_text, permission_level)
+                    if dedupe_key in plugin_command_keys[plugin_displayname]:
+                        continue
+
+                    plugin_command_keys[plugin_displayname].add(dedupe_key)
+                    plugin_commands[plugin_displayname].append(
+                        {
+                            "command": command_name,
+                            "desc": desc_text,
+                            "permission": permission_level,
+                        }
+                    )
         return dict(plugin_commands)
