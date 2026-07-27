@@ -508,7 +508,8 @@ class AstrBotHelpDrawer:
             + self.FOOTER_HEIGHT
             + self.PADDING
         )
-
+        total_height = int(total_height)
+        
         # 创建最终图片
         img = Image.new("RGB", (self.IMG_WIDTH, total_height), color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
