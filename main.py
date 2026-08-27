@@ -1,3 +1,4 @@
+import asyncio
 import collections
 from typing import Dict, List, Optional
 
@@ -32,7 +33,7 @@ class MyPlugin(Star):
         if not help_msg:
             yield event.plain_result("没有找到任何插件或命令")
             return
-        image = self.drawer.draw_help_image(help_msg)
+        image = await asyncio.to_thread(self.drawer.draw_help_image, help_msg)
         yield event.chain_result([Image.fromBytes(image)])
 
 

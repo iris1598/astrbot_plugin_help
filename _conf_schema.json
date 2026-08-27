@@ -48,5 +48,12 @@
         "hint": "可以在插件目录替换astrbot_logo.jpg为自定义的logo。",
         "type": "bool",
         "default": true
+    },
+    "render_theme": {
+        "description": "帮助图片渲染主题",
+        "hint": "light=亮色主题 / dark=暗色主题，两种主题风格参照 rika_share 分享卡片的毛玻璃设计语言",
+        "type": "string",
+        "default": "light",
+        "options": ["light", "dark"]
     }
 }
