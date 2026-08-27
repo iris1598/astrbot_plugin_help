@@ -118,38 +118,54 @@ class AstrBotHelpDrawer:
     COLOR_LOGO_BG_REMOVE = (255, 255, 255)
     LOGO_BG_TOLERANCE = 25
 
-    # 布局尺寸
+    # --- 画布与全局 ---
     IMG_WIDTH = 800
-    PADDING = 28
-    TOP_AREA_MIN_NO_LOGO = 96
-    HEADER_TEXT_GAP = 6
-    LOGO_TARGET_HEIGHT = 62
+    PADDING = 36
+
+    # --- 头部 ---
+    HEAD_BAR_W = 56
+    HEAD_BAR_H = 6
+    HEAD_BAR_GAP = 16           # accent 条与标题间距
+    HEADER_TEXT_GAP = 8         # 标题与副标题间距
+    LOGO_TARGET_HEIGHT = 56
     LOGO_BOX_PADDING = 10
     LOGO_BOX_RADIUS = 16
-    LOGO_TEXT_GAP = 16
+    STAT_PILL_H = 36
+    STAT_PILL_PAD_X = 16
+    STAT_PILL_GAP = 10
+    STAT_LABEL_VALUE_GAP = 6
+    HEADER_TO_STAT_GAP = 20     # 标题块与统计药丸间距
+    STAT_TO_CONTENT_GAP = 26    # 统计药丸与首个区块间距
 
-    SECTION_PILL_HEIGHT = 46
-    SECTION_PILL_PAD_X = 20
-    SECTION_MARKER_SIZE = 14
-    SECTION_MARKER_GAP = 10
-    SECTION_SPACING_BELOW_HEADER = 16
-    SECTION_SPACING_AFTER_CARDS = 28
+    # --- 区块标题 ---
+    SECTION_BAR_W = 6
+    SECTION_BAR_H = 24
+    SECTION_BAR_GAP = 12        # accent 竖条与区块名间距
+    SECTION_ROW_H = 40          # 区块标题行高
+    SECTION_DIVIDER_GAP = 8     # 标题行与分隔线间距
+    SECTION_CARD_GAP = 18       # 分隔线与首行卡片间距
+    SECTION_SPACING_AFTER = 36  # 区块结束后间距
+    COUNT_PILL_H = 28
+    COUNT_PILL_PAD_X = 14
 
-    CARD_MAX_COLS = 4
-    CARD_SPACING = 14
-    CARD_CORNER_RADIUS = 18
-    CARD_PADDING_X = 14
-    CARD_PADDING_TOP = 12
-    CARD_PADDING_BOTTOM = 12
+    # --- 命令卡片（2 列大卡） ---
+    CARD_MAX_COLS = 2
+    CARD_SPACING = 16
+    CARD_CORNER_RADIUS = 20
+    CARD_PADDING_X = 18
+    CARD_PADDING_TOP = 14
+    CARD_PADDING_BOTTOM = 14
     NAME_DESC_SPACING = 8
     DESC_LINE_EXTRA = 6
-    DESC_MAX_LINES = 6
-    CARD_MIN_HEIGHT = 52
+    DESC_MAX_LINES = 4
+    CARD_MIN_HEIGHT = 64
 
+    # --- 光影 ---
     SHADOW_BLUR = 14
     SHADOW_OFFSET_Y = 6
     GLASS_BLUR = 10
 
+    # --- 页脚 ---
     FOOTER_HEIGHT = 56
     FOOTER_DOT_SIZE = 8
     FOOTER_DOT_GAP = 8
@@ -185,18 +201,24 @@ class AstrBotHelpDrawer:
         )
         return title_text, subtitle_text
 
-    def _calculate_top_area_height(self) -> int:
-        if self.logo_enabled and self.resized_logo:
-            box_h = self.LOGO_TARGET_HEIGHT + self.LOGO_BOX_PADDING * 2
-            return self.PADDING + box_h + self.PADDING
+    def _header_text_block_height(self, draw) -> int:
+        title_h = self._text_height(draw, self.title_text, self.font_title)
+        subtitle_h = self._text_height(draw, self.subtitle_text, self.font_subtitle)
+        return self.HEAD_BAR_H + self.HEAD_BAR_GAP + title_h + self.HEADER_TEXT_GAP + subtitle_h
 
+    def _calculate_top_area_height(self) -> int:
         measure = ImageDraw.Draw(Image.new("RGB", (8, 8)))
-        title_h = self._text_height(measure, self.title_text, self.font_title)
-        subtitle_h = self._text_height(measure, self.subtitle_text, self.font_subtitle)
-        computed = (
-            self.PADDING + title_h + self.HEADER_TEXT_GAP + subtitle_h + self.PADDING
+        block_h = self._header_text_block_height(measure)
+        if self.logo_enabled and self.resized_logo:
+            logo_box_h = self.LOGO_TARGET_HEIGHT + self.LOGO_BOX_PADDING * 2
+            block_h = max(block_h, logo_box_h)
+        return (
+            self.PADDING
+            + block_h
+            + self.HEADER_TO_STAT_GAP
+            + self.STAT_PILL_H
+            + self.STAT_TO_CONTENT_GAP
         )
-        return max(self.TOP_AREA_MIN_NO_LOGO, computed)
 
     @staticmethod
     def _read_metadata_value(field_name: str) -> str:
@@ -227,8 +249,10 @@ class AstrBotHelpDrawer:
         try:
             self.font_title = ImageFont.truetype(self.FONT_PATH_BOLD, 36)
             self.font_subtitle = ImageFont.truetype(self.FONT_PATH_REGULAR, 18)
-            self.font_plugin_header = ImageFont.truetype(self.FONT_PATH_BOLD, 20)
-            self.font_command = ImageFont.truetype(self.FONT_PATH_BOLD, 15)
+            self.font_section = ImageFont.truetype(self.FONT_PATH_BOLD, 22)
+            self.font_count = ImageFont.truetype(self.FONT_PATH_REGULAR, 12)
+            self.font_stat = ImageFont.truetype(self.FONT_PATH_REGULAR, 14)
+            self.font_command = ImageFont.truetype(self.FONT_PATH_BOLD, 16)
             self.font_desc = ImageFont.truetype(self.FONT_PATH_REGULAR, 13)
             self.font_footer = ImageFont.truetype(self.FONT_PATH_REGULAR, 12)
         except Exception as e:
@@ -451,7 +475,7 @@ class AstrBotHelpDrawer:
         layer = layer.filter(ImageFilter.GaussianBlur(self.SHADOW_BLUR))
         canvas.alpha_composite(layer)
 
-    # ---------------- 卡片布局（每行最多 4 张） ----------------
+    # ---------------- 卡片布局（每行 2 张大卡） ----------------
     def _layout_cards(
         self,
         sections: List[Tuple[str, List[Tuple[str, str | None]]]],
@@ -466,28 +490,26 @@ class AstrBotHelpDrawer:
         ) // max_cols
         desc_max_width = card_width - self.CARD_PADDING_X * 2
         desc_line_h = self._desc_line_height(draw)
+        header_total = (
+            self.SECTION_ROW_H + self.SECTION_DIVIDER_GAP + self.SECTION_CARD_GAP
+        )
 
         for section_name, cmds in sections:
-            # 区块标题胶囊宽度按文字实测
-            title_w = draw.textlength(section_name, font=self.font_plugin_header)
-            pill_w = int(
-                self.SECTION_PILL_PAD_X
-                + self.SECTION_MARKER_SIZE
-                + self.SECTION_MARKER_GAP
-                + title_w
-                + self.SECTION_PILL_PAD_X
-            )
+            count_text = f"{len(cmds)} 条命令"
+            count_w = draw.textlength(count_text, font=self.font_count)
             layout_info.append(
                 {
                     "type": "header",
                     "name": section_name,
+                    "count_text": count_text,
+                    "count_pill_w": int(count_w + self.COUNT_PILL_PAD_X * 2),
                     "x": self.PADDING,
                     "y": y_offset,
-                    "width": pill_w,
-                    "height": self.SECTION_PILL_HEIGHT,
+                    "width": self.IMG_WIDTH - self.PADDING * 2,
+                    "height": header_total,
                 }
             )
-            y_offset += self.SECTION_PILL_HEIGHT + self.SECTION_SPACING_BELOW_HEADER
+            y_offset += header_total
 
             row_cards: List[Dict] = []
             col_idx = 0
@@ -551,65 +573,107 @@ class AstrBotHelpDrawer:
                 layout_info.extend(row_cards)
                 y_offset += max_row_height + card_spacing
 
-            y_offset += self.SECTION_SPACING_AFTER_CARDS
+            y_offset += self.SECTION_SPACING_AFTER
         return layout_info
 
     # ---------------- 顶部区 ----------------
-    def _draw_header(self, canvas: Image.Image) -> None:
-        draw = ImageDraw.Draw(canvas)
+    def _draw_header(
+        self, canvas: Image.Image, stats: List[Tuple[str, str]]
+    ) -> None:
         theme = self.theme
+        draw = ImageDraw.Draw(canvas)
+        text_block_h = self._header_text_block_height(draw)
 
-        if self.logo_enabled and self.resized_logo:
-            logo_w, logo_h = self.resized_logo.size
-            pad = self.LOGO_BOX_PADDING
-            box = (
+        # accent 短横条 + 主标题 + 副标题
+        bar_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        ImageDraw.Draw(bar_layer).rounded_rectangle(
+            (
                 self.PADDING,
                 self.PADDING,
-                self.PADDING + logo_w + pad * 2,
-                self.PADDING + logo_h + pad * 2,
-            )
-            # Logo 保留白底圆角容器，深浅主题下都能保证可读性
-            container = Image.new("RGBA", (box[2] - box[0], box[3] - box[1]), (0, 0, 0, 0))
-            ImageDraw.Draw(container).rounded_rectangle(
-                (0, 0, container.size[0] - 1, container.size[1] - 1),
-                radius=self.LOGO_BOX_RADIUS,
-                fill=(255, 255, 255, 255),
-                outline=(*theme.card_border, theme.logo_container_border_alpha),
-                width=1,
-            )
-            canvas.alpha_composite(container, (box[0], box[1]))
-            canvas.alpha_composite(self.resized_logo, (box[0] + pad, box[1] + pad))
-            x_text = box[2] + self.LOGO_TEXT_GAP
-            title_h = self._text_height(draw, self.title_text, self.font_title)
-            subtitle_h = self._text_height(draw, self.subtitle_text, self.font_subtitle)
-            block_h = title_h + self.HEADER_TEXT_GAP + subtitle_h
-            y_title = self.PADDING + ((box[3] - box[1]) - block_h) // 2
-        else:
-            # 无 Logo 时画一条 accent 短横条作为头部装饰（rika_share 头部语言）
-            bar_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-            ImageDraw.Draw(bar_layer).rounded_rectangle(
-                (self.PADDING, self.PADDING, self.PADDING + 56, self.PADDING + 6),
-                radius=3,
-                fill=(*theme.accent, 255),
-            )
-            canvas.alpha_composite(bar_layer)
-            x_text = self.PADDING
-            y_title = self.PADDING + 16
+                self.PADDING + self.HEAD_BAR_W,
+                self.PADDING + self.HEAD_BAR_H,
+            ),
+            radius=self.HEAD_BAR_H // 2,
+            fill=(*theme.accent, 255),
+        )
+        canvas.alpha_composite(bar_layer)
 
         draw = ImageDraw.Draw(canvas)
+        y_title = self.PADDING + self.HEAD_BAR_H + self.HEAD_BAR_GAP
         title_h = self._text_height(draw, self.title_text, self.font_title)
         draw.text(
-            (x_text, y_title),
+            (self.PADDING, y_title),
             self.title_text,
             font=self.font_title,
             fill=theme.text_primary,
         )
         draw.text(
-            (x_text, y_title + title_h + self.HEADER_TEXT_GAP),
+            (self.PADDING, y_title + title_h + self.HEADER_TEXT_GAP),
             self.subtitle_text,
             font=self.font_subtitle,
             fill=theme.text_tertiary,
         )
+
+        # Logo 白底圆角容器，置于头部右侧、与标题块垂直居中对齐
+        if self.logo_enabled and self.resized_logo:
+            logo_w, logo_h = self.resized_logo.size
+            pad = self.LOGO_BOX_PADDING
+            box_w, box_h = logo_w + pad * 2, logo_h + pad * 2
+            box_x = self.IMG_WIDTH - self.PADDING - box_w
+            box_y = self.PADDING + max(0, (text_block_h - box_h) // 2)
+            container = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+            ImageDraw.Draw(container).rounded_rectangle(
+                (0, 0, box_w - 1, box_h - 1),
+                radius=self.LOGO_BOX_RADIUS,
+                fill=(255, 255, 255, 255),
+                outline=(*theme.card_border, theme.logo_container_border_alpha),
+                width=1,
+            )
+            canvas.alpha_composite(container, (box_x, box_y))
+            canvas.alpha_composite(self.resized_logo, (box_x + pad, box_y + pad))
+
+        # 统计药丸行（标签弱化色 + 数值主色）
+        y_stat = self.PADDING + text_block_h + self.HEADER_TO_STAT_GAP
+        x_cursor = self.PADDING
+        for label, value in stats:
+            label_w = draw.textlength(label, font=self.font_stat)
+            value_w = draw.textlength(value, font=self.font_stat)
+            pill_w = int(
+                self.STAT_PILL_PAD_X
+                + label_w
+                + self.STAT_LABEL_VALUE_GAP
+                + value_w
+                + self.STAT_PILL_PAD_X
+            )
+            self._glass(
+                canvas,
+                (x_cursor, y_stat, x_cursor + pill_w, y_stat + self.STAT_PILL_H),
+                radius=self.STAT_PILL_H // 2,
+                tint_rgb=theme.pill_tint,
+                tint_alpha=theme.pill_tint_alpha,
+                border_rgb=theme.card_border,
+                border_alpha=theme.pill_border_alpha,
+                blur=self.GLASS_BLUR,
+            )
+            draw = ImageDraw.Draw(canvas)
+            bbox_l = draw.textbbox((0, 0), label, font=self.font_stat)
+            cy = y_stat + self.STAT_PILL_H // 2
+            tx = x_cursor + self.STAT_PILL_PAD_X
+            draw.text(
+                (tx, cy - (bbox_l[3] + bbox_l[1]) // 2),
+                label,
+                font=self.font_stat,
+                fill=theme.text_tertiary,
+            )
+            tx += label_w + self.STAT_LABEL_VALUE_GAP
+            bbox_v = draw.textbbox((0, 0), value, font=self.font_stat)
+            draw.text(
+                (tx, cy - (bbox_v[3] + bbox_v[1]) // 2),
+                value,
+                font=self.font_stat,
+                fill=theme.text_primary,
+            )
+            x_cursor += pill_w + self.STAT_PILL_GAP
 
     # ---------------- 区块与卡片 ----------------
     def _draw_sections(self, canvas: Image.Image, layout_info: List[Dict]) -> None:
@@ -623,24 +687,12 @@ class AstrBotHelpDrawer:
         ]
         self._draw_card_shadows(canvas, card_boxes)
 
-        # 2) 毛玻璃区块标题胶囊 + 毛玻璃命令卡片
+        # 2) 毛玻璃：命令卡片 + 数量徽章
         for it in layout_info:
-            box = (it["x"], it["y"], it["x"] + it["width"], it["y"] + it["height"])
-            if it["type"] == "header":
+            if it["type"] == "card":
                 self._glass(
                     canvas,
-                    box,
-                    radius=it["height"] // 2,
-                    tint_rgb=theme.pill_tint,
-                    tint_alpha=theme.pill_tint_alpha,
-                    border_rgb=theme.card_border,
-                    border_alpha=theme.pill_border_alpha,
-                    blur=self.GLASS_BLUR,
-                )
-            elif it["type"] == "card":
-                self._glass(
-                    canvas,
-                    box,
+                    (it["x"], it["y"], it["x"] + it["width"], it["y"] + it["height"]),
                     radius=self.CARD_CORNER_RADIUS,
                     tint_rgb=theme.card_tint,
                     tint_alpha=theme.card_tint_alpha,
@@ -648,30 +700,73 @@ class AstrBotHelpDrawer:
                     border_alpha=theme.card_border_alpha,
                     blur=self.GLASS_BLUR,
                 )
+            elif it["type"] == "header":
+                pill_w = it["count_pill_w"]
+                pill_x = self.IMG_WIDTH - self.PADDING - pill_w
+                pill_y = it["y"] + (self.SECTION_ROW_H - self.COUNT_PILL_H) // 2
+                self._glass(
+                    canvas,
+                    (pill_x, pill_y, pill_x + pill_w, pill_y + self.COUNT_PILL_H),
+                    radius=self.COUNT_PILL_H // 2,
+                    tint_rgb=theme.pill_tint,
+                    tint_alpha=theme.pill_tint_alpha,
+                    border_rgb=theme.card_border,
+                    border_alpha=theme.pill_border_alpha,
+                    blur=self.GLASS_BLUR,
+                )
 
-        # 3) 文字
+        # 3) 分隔线（区块标题下方 + 数量徽章共用一条基准）
+        divider_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        dd = ImageDraw.Draw(divider_layer)
+        for it in layout_info:
+            if it["type"] == "header":
+                line_y = it["y"] + self.SECTION_ROW_H + self.SECTION_DIVIDER_GAP
+                dd.line(
+                    (self.PADDING, line_y, self.IMG_WIDTH - self.PADDING, line_y),
+                    fill=(*theme.divider, theme.divider_alpha),
+                    width=1,
+                )
+        canvas.alpha_composite(divider_layer)
+
+        # 4) 文字
         draw = ImageDraw.Draw(canvas)
         desc_line_h = self._desc_line_height(draw)
         for it in layout_info:
             if it["type"] == "header":
-                cy = it["y"] + it["height"] // 2
-                dot_x = it["x"] + self.SECTION_PILL_PAD_X
-                draw.ellipse(
+                cy = it["y"] + self.SECTION_ROW_H // 2
+                # accent 竖条
+                bar_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+                ImageDraw.Draw(bar_layer).rounded_rectangle(
                     (
-                        dot_x,
-                        cy - self.SECTION_MARKER_SIZE // 2,
-                        dot_x + self.SECTION_MARKER_SIZE,
-                        cy + self.SECTION_MARKER_SIZE // 2,
+                        it["x"],
+                        cy - self.SECTION_BAR_H // 2,
+                        it["x"] + self.SECTION_BAR_W,
+                        cy + self.SECTION_BAR_H // 2,
                     ),
-                    fill=theme.accent,
+                    radius=self.SECTION_BAR_W // 2,
+                    fill=(*theme.accent, 255),
                 )
-                text_x = dot_x + self.SECTION_MARKER_SIZE + self.SECTION_MARKER_GAP
-                bbox = draw.textbbox((0, 0), it["name"], font=self.font_plugin_header)
+                canvas.alpha_composite(bar_layer)
+                draw = ImageDraw.Draw(canvas)
+                # 区块名
+                text_x = it["x"] + self.SECTION_BAR_W + self.SECTION_BAR_GAP
+                bbox = draw.textbbox((0, 0), it["name"], font=self.font_section)
                 draw.text(
                     (text_x, cy - (bbox[3] + bbox[1]) // 2),
                     it["name"],
-                    font=self.font_plugin_header,
+                    font=self.font_section,
                     fill=theme.text_primary,
+                )
+                # 数量徽章文字
+                pill_w = it["count_pill_w"]
+                pill_x = self.IMG_WIDTH - self.PADDING - pill_w
+                bbox = draw.textbbox((0, 0), it["count_text"], font=self.font_count)
+                cw = bbox[2] - bbox[0]
+                draw.text(
+                    (pill_x + (pill_w - cw) // 2, cy - (bbox[3] + bbox[1]) // 2),
+                    it["count_text"],
+                    font=self.font_count,
+                    fill=theme.text_tertiary,
                 )
             elif it["type"] == "card":
                 x0, y0 = it["x"], it["y"]
@@ -701,7 +796,6 @@ class AstrBotHelpDrawer:
         theme = self.theme
         footer_top = total_height - self.FOOTER_HEIGHT
 
-        # 弱化分隔线
         divider_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
         ImageDraw.Draw(divider_layer).line(
             (self.PADDING, footer_top, self.IMG_WIDTH - self.PADDING, footer_top),
@@ -713,7 +807,6 @@ class AstrBotHelpDrawer:
         draw = ImageDraw.Draw(canvas)
         cy = footer_top + self.FOOTER_HEIGHT // 2
 
-        # 左侧：accent 圆点 + 品牌水印
         dot_y = cy - self.FOOTER_DOT_SIZE // 2
         draw.ellipse(
             (
@@ -736,7 +829,6 @@ class AstrBotHelpDrawer:
             fill=theme.text_tertiary,
         )
 
-        # 右侧：插件名 + 版本
         footer_text = f"{self.plugin_display_name} v{self.plugin_version}"
         bbox = draw.textbbox((0, 0), footer_text, font=self.font_footer)
         fw = bbox[2] - bbox[0]
@@ -779,8 +871,10 @@ class AstrBotHelpDrawer:
             glow_bl, (-glow_w // 3, total_height - glow_h + glow_h // 3)
         )
 
-        # 顶部区（Logo + 标题）
-        self._draw_header(canvas)
+        # 顶部区（accent 条 + 标题 + 统计药丸 + 右侧 Logo）
+        total_cmds = sum(len(cmds) for _, cmds in sections)
+        stats = [("插件", str(len(sections))), ("命令", str(total_cmds))]
+        self._draw_header(canvas, stats)
 
         # 区块与卡片
         self._draw_sections(canvas, layout_info)
