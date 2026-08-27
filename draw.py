@@ -120,12 +120,12 @@ class AstrBotHelpDrawer:
 
     # --- 画布与全局 ---
     IMG_WIDTH = 800
-    PADDING = 36
+    PADDING = 32
 
     # --- 头部 ---
     HEAD_BAR_W = 56
     HEAD_BAR_H = 6
-    HEAD_BAR_GAP = 16           # accent 条与标题间距
+    HEAD_BAR_GAP = 14           # accent 条与标题间距
     HEADER_TEXT_GAP = 8         # 标题与副标题间距
     LOGO_TARGET_HEIGHT = 56
     LOGO_BOX_PADDING = 10
@@ -134,8 +134,8 @@ class AstrBotHelpDrawer:
     STAT_PILL_PAD_X = 16
     STAT_PILL_GAP = 10
     STAT_LABEL_VALUE_GAP = 6
-    HEADER_TO_STAT_GAP = 20     # 标题块与统计药丸间距
-    STAT_TO_CONTENT_GAP = 26    # 统计药丸与首个区块间距
+    HEADER_TO_STAT_GAP = 18     # 标题块与统计药丸间距
+    STAT_TO_CONTENT_GAP = 24    # 统计药丸与首个区块间距
 
     # --- 区块标题 ---
     SECTION_BAR_W = 6
@@ -143,14 +143,16 @@ class AstrBotHelpDrawer:
     SECTION_BAR_GAP = 12        # accent 竖条与区块名间距
     SECTION_ROW_H = 40          # 区块标题行高
     SECTION_DIVIDER_GAP = 8     # 标题行与分隔线间距
-    SECTION_CARD_GAP = 18       # 分隔线与首行卡片间距
-    SECTION_SPACING_AFTER = 36  # 区块结束后间距
+    SECTION_CARD_GAP = 16       # 分隔线与首行卡片间距
+    SECTION_SPACING_AFTER = 32  # 区块结束后间距
     COUNT_PILL_H = 28
     COUNT_PILL_PAD_X = 14
 
-    # --- 命令卡片（2 列大卡） ---
-    CARD_MAX_COLS = 2
-    CARD_SPACING = 16
+    # --- 命令卡片（列数可配置，默认 2 列） ---
+    DEFAULT_CARD_COLS = 2
+    MIN_CARD_COLS = 1
+    MAX_CARD_COLS = 4
+    CARD_SPACING = 14
     CARD_CORNER_RADIUS = 20
     CARD_PADDING_X = 18
     CARD_PADDING_TOP = 14
@@ -166,7 +168,7 @@ class AstrBotHelpDrawer:
     GLASS_BLUR = 10
 
     # --- 页脚 ---
-    FOOTER_HEIGHT = 56
+    FOOTER_HEIGHT = 52
     FOOTER_DOT_SIZE = 8
     FOOTER_DOT_GAP = 8
 
@@ -179,6 +181,12 @@ class AstrBotHelpDrawer:
             theme_name = "light"
         self.theme_name = theme_name
         self.theme = _THEMES[theme_name]
+
+        try:
+            cols = int(getattr(config, "render_card_columns", self.DEFAULT_CARD_COLS))
+        except (TypeError, ValueError):
+            cols = self.DEFAULT_CARD_COLS
+        self.card_max_cols = max(self.MIN_CARD_COLS, min(self.MAX_CARD_COLS, cols))
 
         self.plugin_display_name = self._load_plugin_display_name()
         self.plugin_version = self._load_plugin_version()
@@ -475,7 +483,7 @@ class AstrBotHelpDrawer:
         layer = layer.filter(ImageFilter.GaussianBlur(self.SHADOW_BLUR))
         canvas.alpha_composite(layer)
 
-    # ---------------- 卡片布局（每行 2 张大卡） ----------------
+    # ---------------- 卡片布局（列数可配置） ----------------
     def _layout_cards(
         self,
         sections: List[Tuple[str, List[Tuple[str, str | None]]]],
@@ -483,7 +491,7 @@ class AstrBotHelpDrawer:
     ) -> List[Dict]:
         layout_info: List[Dict] = []
         y_offset = self.top_area_height
-        max_cols = self.CARD_MAX_COLS
+        max_cols = self.card_max_cols
         card_spacing = self.CARD_SPACING
         card_width = (
             self.IMG_WIDTH - self.PADDING * 2 - card_spacing * (max_cols - 1)

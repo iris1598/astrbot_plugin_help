@@ -55,5 +55,11 @@
         "type": "string",
         "default": "light",
         "options": ["light", "dark"]
+    },
+    "render_card_columns": {
+        "description": "命令卡片列数",
+        "hint": "每行展示的命令卡片数量，范围 1~4，默认 2 列；插件命令较多时可调到 3~4 列缩短图片长度",
+        "type": "int",
+        "default": 2
     }
 }
